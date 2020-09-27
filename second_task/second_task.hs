@@ -1,3 +1,6 @@
+import Data.List (find)
+import Data.Maybe (fromJust)
+
 primes :: [Int]
 primes = sieve [2..]
             where 
@@ -34,3 +37,18 @@ binaryUnfolder i = Just (div i 2, mod i 2)
 binaryDigits :: Int -> [Int]
 binaryDigits 0 = [0]
 binaryDigits i = reverse (unfold binaryUnfolder i)
+
+multipliersHelper :: Int -> [Int] -> [Int]
+multipliersHelper i a@(x:xs) 
+                        | i == 1       = []
+                        | mod i x == 0 = x : multipliersHelper (div i x) a
+                        | otherwise    = multipliersHelper i xs 
+
+multipliers :: Int -> [Int]
+multipliers 0 = []
+multipliers i = multipliersHelper i primesEratosthenes
+
+multipliersUnfolder :: Int -> Maybe (Int, Int)
+multipliersUnfolder 1 = Nothing
+multipliersUnfolder i = Just (div i x, x)
+                        where x = fromJust (find (\x -> (mod i x) == 0) primesEratosthenes)

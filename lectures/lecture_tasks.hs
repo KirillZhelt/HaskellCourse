@@ -63,7 +63,7 @@ fibEndless = fibGen 0 1
 
 fibZipWith = 0 : 1 : (zipWith (+) fibZipWith (tail fibZipWith))
 
-data Point = Point Int Int
+data Point = Point Int Int deriving (Show)
 movePoint :: Point -> Int -> Int -> Point
 movePoint (Point x y) u v = Point (x + u) (y + v)
 
