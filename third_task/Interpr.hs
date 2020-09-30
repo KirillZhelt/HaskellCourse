@@ -5,6 +5,7 @@ import Data.Char (isAlpha, isDigit, isSpace)
 import Data.List as L (unfoldr, stripPrefix, find)
 import Data.Map as M (Map, fromList, lookup)
 import Data.Maybe (isJust, isNothing)
+import Data.Fixed (mod')
 import Control.Monad (join)
 import Control.Exception
 
@@ -16,8 +17,10 @@ data Token = TokenOpenPar
            | TokenSlash
            | TokenPercent
            | TokenWedge
+           | TokenBackslash
            | TokenAbs
-           | TokenInt Int
+           | TokenLn
+           | TokenFloat Float
            | TokenIdent String
   deriving (Show)
 
@@ -37,7 +40,9 @@ fixedTokenDescriptors = [
   ("/",    TokenSlash),
   ("%",    TokenPercent),
   ("^",    TokenWedge),
-  ("abs",  TokenAbs)
+  ("\\",   TokenBackslash), 
+  ("abs",  TokenAbs),
+  ("ln",   TokenLn)
   ]
 
 makeFixedTokenAcceptor :: FixedTokenDescriptor -> TokenAcceptor
@@ -45,9 +50,12 @@ makeFixedTokenAcceptor (s, t) = (fmap (s,) . (stripPrefix s), const t)
 
 fixedTokenAcceptors = map makeFixedTokenAcceptor fixedTokenDescriptors
 
+isDigitOrPoint :: Char -> Bool
+isDigitOrPoint c = isDigit c || c == '.'
+
 charCategoryTokenDescriptors :: [CharCategoryTokenDescriptor]
 charCategoryTokenDescriptors = [
-  (isDigit, TokenInt . read),
+  (isDigitOrPoint, TokenFloat . read),
   (isAlpha, TokenIdent)
   ]
 
@@ -78,6 +86,7 @@ tokenize = concat . map (unfoldr acceptToken) . words
 
 data UnOp = UnOpNegate
           | UnOpAbs
+          | UnOpLn
   deriving (Show, Eq, Ord)
 
 data BinOp = BinOpAdd
@@ -86,9 +95,10 @@ data BinOp = BinOpAdd
            | BinOpDiv
            | BinOpMod
            | BinOpPow
+           | BinOpRoot
   deriving (Show, Eq, Ord)
 
-data Expression = ExConst Int
+data Expression = ExConst Float
                 | ExVar String
                 | ExUnary UnOp Expression
                 | ExBinary BinOp Expression Expression
@@ -113,16 +123,18 @@ expectMultiplicativeOp _ = Nothing
 
 expectPowerOp :: BinOpExpectation
 expectPowerOp TokenWedge = Just BinOpPow
+expectPowerOp TokenBackslash = Just BinOpRoot
 expectPowerOp _ = Nothing
 
 expectUnOp :: Expectation UnOp
 expectUnOp TokenMinus = Just UnOpNegate
 expectUnOp TokenAbs = Just UnOpAbs
+expectUnOp TokenLn = Just UnOpLn
 expectUnOp _ = Nothing
 
-expectInt :: Expectation Int
-expectInt (TokenInt x) = Just x
-expectInt _ = Nothing
+expectFloat :: Expectation Float
+expectFloat (TokenFloat x) = Just x
+expectFloat _ = Nothing
 
 expectIdent :: Expectation String
 expectIdent (TokenIdent v) = Just v
@@ -180,7 +192,7 @@ parseBareTerm :: Parser Expression
 parseBareTerm = parseAlternatives [parseConst, parseVar, parseSubexpression]
 
 parseConst :: Parser Expression
-parseConst = (fmap (first ExConst)) . (parseSingleToken expectInt)
+parseConst = (fmap (first ExConst)) . (parseSingleToken expectFloat)
 
 parseVar :: Parser Expression
 parseVar = (fmap (first ExVar)) . (parseSingleToken expectIdent)
@@ -200,23 +212,28 @@ filterMaybe p m@(Just x)
 parse :: [Token] -> Maybe Expression
 parse = fmap (fst) . filterMaybe (null . snd) . parseSum
 
-unOpSemantics :: Map UnOp (Int -> Int)
+unOpSemantics :: Map UnOp (Float -> Float)
 unOpSemantics = fromList [
     (UnOpNegate, negate),
-    (UnOpAbs, abs)
+    (UnOpAbs, abs),
+    (UnOpLn, log)
   ]
 
-binOpSemantics :: Map BinOp (Int -> Int -> Int)
+root :: Float -> Float -> Float
+root x y = y ** (1 / y)
+
+binOpSemantics :: Map BinOp (Float -> Float -> Float)
 binOpSemantics = fromList [
     (BinOpAdd, (+)),
     (BinOpSub, (-)),
     (BinOpMul, (*)),
-    (BinOpDiv, div),
-    (BinOpMod, mod),
-    (BinOpPow, (^))
+    (BinOpDiv, (/)),
+    (BinOpMod, mod'),
+    (BinOpPow, (**)),
+    (BinOpRoot, (root))
   ]
 
-eval :: Expression -> Map String Int -> Maybe Int
+eval :: Expression -> Map String Float -> Maybe Float
 eval (ExConst x) _ = Just x
 eval (ExVar v) m = M.lookup v m
 eval (ExUnary op ex) m = (M.lookup op unOpSemantics) <*> (eval ex m)
