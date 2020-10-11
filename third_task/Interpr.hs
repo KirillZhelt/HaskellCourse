@@ -1,7 +1,7 @@
 {-# LANGUAGE TupleSections #-}
 
 import Data.Bifunctor (first)
-import Data.Char (isAlpha, isDigit, isSpace)
+import Data.Char (isAlpha, isDigit)
 import Data.List as L (unfoldr, stripPrefix, find)
 import Data.Map as M (Map, fromList, lookup)
 import Data.Maybe (isJust, isNothing)
@@ -220,7 +220,7 @@ unOpSemantics = fromList [
   ]
 
 root :: Float -> Float -> Float
-root x y = y ** (1 / y)
+root x y = x ** (1 / y)
 
 binOpSemantics :: Map BinOp (Float -> Float -> Float)
 binOpSemantics = fromList [
